@@ -13,6 +13,8 @@ app.use(cors());
 app.use('/users',userRoutes);
 require('./connection');
 
+
+
 //Ovdje kreiramo i vezemo socket.io i node.js http server jedno s drugim
 const server = require('http').createServer(app)
 const port = 5001;
@@ -22,6 +24,11 @@ const io = require('socket.io')(server, {
     }
 })
 
-server.listen(port, () => {
+server.listen(port, () => {app.use(function(req, res, next) {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
+    next();
+  });
+
     console.log(`listening to port ${port}`);
 })

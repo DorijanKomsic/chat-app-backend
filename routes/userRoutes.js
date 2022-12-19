@@ -11,8 +11,9 @@ router.post('/', async(req, res) => {
         const password = req.body.password;
 
         const userNameExists = User.exists({name: req.body.name}) // Checks if the generated user exists in the db
-        if(userNameExists){                                       // If the user exists then we generate a new username until we generate a unique one
+        while(userNameExists){                                       // If the user exists then we generate a new username until we generate a unique one
             req.body.name = generateUsername("@",2,15);
+            if(req.body.name != userNameExists) break;
         }
         const name = req.body.name;                               // We assign the 'name' object field to the name variable
         
@@ -35,16 +36,17 @@ router.post('/', async(req, res) => {
 
 
 //login user
-router.post('/login', async(req, res) => {
+router.post('/login', async(req, res)=> {
     try {
-        const {email, password} = req.body;
-        const user = await User.findByCredentials(email, password);
-        user.status = 'online';
-        await user.save();
-        res.status(201).json(user);
+      const {email, password} = req.body;
+      const user = await User.findByCredentials(email, password);
+      user.status = 'online';
+      await user.save();
+      res.status(200).json(user);
     } catch (e) {
-        res.status(400).json(e.message);
+        res.status(400).json(e.message)
     }
-})
+  });
+  
 
 module.exports = router;
