@@ -5,9 +5,7 @@ const userRoutes = require('./routes/userRoutes');
 
 const cors = require('cors');
 const Message = require('./models/Messages');
-const { join } = require('path');
 const User = require('./models/Users');
-const { default: isTaxID } = require('validator/lib/isTaxID');
 
 //Server ovdje parsa sve POST/PUT requestove u application/json ili application/x-www-form-urlencoded 
 app.use(express.urlencoded({extended: true})); 
@@ -24,12 +22,14 @@ const server = require('http').createServer(app)
 const port = 5001;
 const io = require('socket.io')(server, {
     cors: {
-        origin: "*"
+        origin: 'http://localhost.localdomain:3000'
     }
 });
 
 
 const rooms = ['gen-chat#1','gen-chat#2','gen-chat#3'];
+
+
 
 async function getMessagesFromRoom(room) {
     let roomMessages = await Message.aggregate([
@@ -52,12 +52,15 @@ function sortMessagesByDate(messages) {
 }
 
 // socket connection
-io.on('connection', (socket) => {
+io.on('connection', socket => {
+
     
-    socket.on('new-user', async() => {
+    console.log('connected to socket.io');
+
+    socket.on('new-user', async () => {
         const members = await User.find();
-        io.emit('new-users', members);
-    });    
+        io.emit('new-user', members);
+    })    
 
 
     socket.on('join-room', async(newRoom, previousRoom) => {
@@ -90,7 +93,7 @@ io.on('connection', (socket) => {
                 socket.broadcast.emit('new-user', members);
                 res.status(200).send();
 
-            } catch {
+            } catch (e) {
                 console.log(e);
                 res.status(400).send();
         }
