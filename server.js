@@ -55,7 +55,6 @@ function sortMessagesByDate(messages) {
 io.on('connection', socket => {
 
     
-    console.log('connected to socket.io');
 
     socket.on('new-user', async () => {
         const members = await User.find();
@@ -73,11 +72,12 @@ io.on('connection', socket => {
 
 
     socket.on('message-room', async(room, content, sender, time, date) => {
+        console.log('message: ', content);
         const newMessage = await Message.create({content, from: sender, time, date, to: room});
-        let roomMessages = await getMessagesFromRoom(roomMessages);
+        let roomMessages = await getMessagesFromRoom(room);
         roomMessages = sortMessagesByDate(roomMessages);
         //send messages
-        io.to(room).emit('room-message', roomMessages);
+        io.to(room).emit('room-messages', roomMessages);
         socket.broadcast.emit('notifications', room);
     })
 
@@ -88,7 +88,7 @@ io.on('connection', socket => {
                 const user = await User.findById(_id);
                 user.Status = 'offline';
                 user.newMessages = newMessages;
-                await User.save();
+                await user.save();
                 const members = await User.find();
                 socket.broadcast.emit('new-user', members);
                 res.status(200).send();
