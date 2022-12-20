@@ -4,6 +4,10 @@ const app = express();
 const userRoutes = require('./routes/userRoutes');
 
 const cors = require('cors');
+const Message = require('./models/Messages');
+const { join } = require('path');
+const User = require('./models/Users');
+const { default: isTaxID } = require('validator/lib/isTaxID');
 
 //Server ovdje parsa sve POST/PUT requestove u application/json ili application/x-www-form-urlencoded 
 app.use(express.urlencoded({extended: true})); 
@@ -20,15 +24,86 @@ const server = require('http').createServer(app)
 const port = 5001;
 const io = require('socket.io')(server, {
     cors: {
-        origin: 'http://localhost:3000',
+        origin: "*"
     }
+});
+
+
+const rooms = ['gen-chat#1','gen-chat#2','gen-chat#3'];
+
+async function getMessagesFromRoom(room) {
+    let roomMessages = await Message.aggregate([
+        {$match: {to: room}},
+        {$group: {_id: '$date', messagesByDate: {$push: '$$ROOT'}}}
+    ])
+    return roomMessages;
+}
+
+function sortMessagesByDate(messages) {
+    return messages.sort(function(a ,b){
+        let date1 = a._id.split('/');  //We split the dates from dd/mm/yyyy to an array [dd,mm,2022]
+        let date2 = b._id.split('/');
+
+        date1 = date1[2] + date1[0] + date1[1]; //Then we reformat it to yyyyddmm
+        date2 = date2[2] + date2[0] + date2[1];
+
+        return date1 < date2 ? -1 : 1
+    });
+}
+
+// socket connection
+io.on('connection', (socket) => {
+    
+    socket.on('new-user', async() => {
+        const members = await User.find();
+        io.emit('new-users', members);
+    });    
+
+
+    socket.on('join-room', async(newRoom, previousRoom) => {
+        socket.join(newRoom);
+        socket.leave(previousRoom);
+        let roomMessages = await getMessagesFromRoom(newRoom);
+        roomMessages = sortMessagesByDate(roomMessages);
+        socket.emit('room-messages', roomMessages);
+    })
+
+
+    socket.on('message-room', async(room, content, sender, time, date) => {
+        const newMessage = await Message.create({content, from: sender, time, date, to: room});
+        let roomMessages = await getMessagesFromRoom(roomMessages);
+        roomMessages = sortMessagesByDate(roomMessages);
+        //send messages
+        io.to(room).emit('room-message', roomMessages);
+        socket.broadcast.emit('notifications', room);
+    })
+
+
+    app.delete('/logout', async(req, res)=> {
+            try {
+                const {_id, newMessages} = req.body;
+                const user = await User.findById(_id);
+                user.Status = 'offline';
+                user.newMessages = newMessages;
+                await User.save();
+                const members = await User.find();
+                socket.broadcast.emit('new-user', members);
+                res.status(200).send();
+
+            } catch {
+                console.log(e);
+                res.status(400).send();
+        }
+    })
+
 })
 
-server.listen(port, () => {app.use(function(req, res, next) {
-    res.header("Access-Control-Allow-Origin", "*");
-    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept");
-    next();
-  });
+app.get('/rooms', (req, res) => {
+    res.json(rooms);
+})
+
+
+server.listen(port, () => {
 
     console.log(`listening to port ${port}`);
 })
